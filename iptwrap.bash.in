@@ -1,0 +1,90 @@
+#!/bin/bash
+
+TARGETSCRIPT="./iptables.sh"
+SOLIB="./iptablesdryrun.so"
+
+if [[ "$EUID" -ne 0 ]]; then
+	echo "Root privileges required !"
+	exit 1
+fi
+
+if ! [[ -e ${TARGETSCRIPT} ]]; then
+	echo "The script you want to dry-run does not exist !"
+	echo "    --> ${TARGETSCRIPT}"
+	exit 1
+fi
+
+if ! [[ -e ${SOLIB} ]]; then
+	cat <<EOF | xxd -p -r | gzip -d > ${SOLIB}
+HEX
+EOF
+
+	chmod 755 ${SOLIB}
+fi
+
+export LD_PRELOAD="${SOLIB}"
+
+if [[ $# = 0 ]]; then
+	TMPFILE=$(mktemp)
+	echo "Dry-running ..."
+	IMACHILD=1 $0 --dry-run > "${TMPFILE}" 2>&1
+	RET=$?
+	if [[ $RET != 0 ]]; then
+		echo "Dry-run failed !"
+		tail -n 5 "${TMPFILE}"
+		rm -f "${TMPFILE}"
+		exit 1
+	fi
+	rm -f "${TMPFILE}"
+	echo "Dry-run successful"
+	IMACHILD=1 $0 --apply
+	RET=$?
+	[[ $RET != 0 ]] && echo "Ruleset application failed !" && exit 1
+	echo "Ruleset application successful"
+	exit 0
+elif [[ "$1" = "--apply" ]]; then
+	read -n 1 -r -p "Are you sure you want to apply the ruleset ? (y/N) "
+	if ! [[ ${REPLY} =~ ^[Yy] ]]
+	then
+		if ! [[ ${REPLY} =~ ^$ ]]
+		then
+			echo -ne "\nCancelled !\n"
+		else
+			echo -ne "Cancelled !\n"
+		fi
+		exit 1
+	fi
+	echo -ne "\nApplying ruleset ...\n"
+	unset LD_PRELOAD
+	/bin/bash -e +x +v ${TARGETSCRIPT}
+	RET=$?
+	if [[ $IMACHILD = 1 ]]; then
+		exit $RET
+	fi
+	if [[ $RET != 0 ]]; then
+		echo "Ruleset application failed !"
+		exit $RET
+	else
+		echo "Ruleset application successful"
+		exit 0
+	fi
+elif [[ "$1" = "--dry-run" ]]; then
+	echo "Dry-running ..."
+	/bin/bash -e -v -x -u ${TARGETSCRIPT}
+	RET=$?
+	if [[ $IMACHILD = 1 ]]; then
+		exit $RET
+	fi
+	if [[ $RET != 0 ]]; then
+		echo "Dry-run failed !"
+		exit $RET
+	else
+		echo "Dry-run successful !"
+		exit 0
+	fi
+	exit $?
+else
+	echo "Wrong argument, please specify --dry-run, --apply, or no argument"
+	exit 1
+fi
+

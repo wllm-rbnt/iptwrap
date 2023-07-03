@@ -1,4 +1,4 @@
-# Dry-running iptables rulesets bash script
+# Dry-running iptables-legacy rulesets bash script
 
 *Warning*: only for Linux 64bit systems so far !
 

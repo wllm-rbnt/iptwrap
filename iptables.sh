@@ -6,7 +6,7 @@ DST=10.0.0.2
 iptables-legacy -Z
 iptables-legacy -F
 iptables-legacy -N test
-iptables-legacy -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables-legacy -A INPUT -m state --state ESTABLISHED, RELATED -j ACCEPT
 # [...]
 # very large ruleset
 # [...]
